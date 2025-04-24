@@ -2,109 +2,106 @@
 
 set -e 
 
+# Color variables
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No color / Reset
+
+
 scrDir="$(dirname "$(realpath "$0")")"
 pm=""
+packages=(
+	"gnome-tweaks"
+	"flatpak"
+	"git"
+	"sassc"
+	"curl"
+	"perl"
+	"fbset"
+	"python3"
+	"xrandr"
+)
 
-if command -v dnf; then
-	echo "Operating System: Fedora"
-	pm="dnf"
+# Check if /etc/os-release exists
+if [ -f /etc/os-release ]; then
+	# Source the file to load variables like ID and PRETTY_NAME
+	. /etc/os-release
+
+	echo -e "${GREEN}Detected OS: $PRETTY_NAME${NC}"
+else
+	echo -e "${RED}Cannot detect OS: /etc/os-release not found${NC}"
+	exit 1
 fi
 
-if command -v apt; then
-	echo "Operating System: Debian based"
-	pm="apt"
+case "$ID" in
+	debian|ubuntu|linuxmint|pop|zorin)
+		pm="apt"
+		;;
+	fedora|centos|rhel)
+		pm="dnf"
+		;;
+	arch)
+		pm="pacman"
+		;;
+	alpine)
+		pm="apk"
+		;;
+	*)
+		echo -e "${RED}Can't determine package manager :( [$ID]${NC}"
+		exit 1
+		;;
+esac
+
+echo -e "${GREEN}Detected Package Manager: $pm${NC}"
+
+if [[ $pm == "pacman" ]]; then
+	sudo $pm -Syu
+else
+	sudo $pm update
 fi
 
-sudo $pm update
-
-
-if ! command -v gnome-tweaks; then
-	echo "Installing gnome tweaks..."
-	sudo $pm install -y gnome-tweaks
+if [[ "$ID" == "fedora" ]]; then
+	packages=("${packages[@]/fbset}")
+elif [[ "$ID" == "arch" ]]; then
+	packages=("${packages[@]/xrandr}")
 fi
 
-if ! command -v flatpak; then
-	echo "Installing Flatpak..."
-	sudo $pm install -y flatpak
-fi
+for package in "${packages[@]}"; do
+	if ! command -v $package &> /dev/null; then
+		echo -e "${YELLOW}[$package]${NC} Installing..."
+
+		if [[ $pm == "pacman" ]]; then
+			sudo $pm -S --noconfirm --needed $package &> /dev/null
+		else
+			sudo $pm install -y $package &> /dev/null
+		fi
+	else
+		echo -e "${GREEN}[$package]${NC} is already installed. Moving on..."
+	fi
+done
+
 
 sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
 sudo flatpak install -y flathub com.mattjakeman.ExtensionManager
 
-if ! command -v git; then
-	echo "Installing git..."
-	sudo $pm -y install git
-fi
 
-if ! command -v sassc; then
-	echo "Installing git..."
-	sudo $pm -y install sassc
-fi
+# Setting Cursor, Icon, Theme, wallpapers and extensions
+./whitesur.sh $pm
 
-# Setting Cursor -----------------------------------------
 
-git clone https://github.com/vinceliuice/WhiteSur-cursors.git
+# Installing Extensions ----------------------------------------
 
-cd WhiteSur-cursors
-
-./install.sh
-
-cd ..
-
-rm -rf WhiteSur-cursors
-
-# Setting Icon -------------------------------------------
-
-git clone https://github.com/vinceliuice/WhiteSur-icon-theme.git
-
-cd WhiteSur-icon-theme
-
-./install.sh
-
-cd ..
-
-rm -rf WhiteSur-icon-theme
-
-# Setting Theme ------------------------------------------
-
-git clone https://github.com/vinceliuice/WhiteSur-gtk-theme.git
-
-cd WhiteSur-gtk-theme
-
-./install.sh -l -c light -m  -HD --round -N stable
-
-sudo ./tweaks.sh -g -i apple -p 60
-
-sudo ./tweaks.sh -f monterey
-
-cd ..
-
-rm -rf WhiteSur-gtk-theme
-
-mkdir -p ~/.themes
-
-for i in "$scrDir"/theme/*;do
-	tar -xf $i -C ~/.themes
-done
+./ext-installer.sh $pm $ID
 
 sudo flatpak override --filesystem=xdg-config/gtk-3.0 && sudo flatpak override --filesystem=xdg-config/gtk-4.0
 
 gsettings set org.gnome.desktop.interface cursor-theme WhiteSur-cursors
-gsettings set org.gnome.desktop.interface icon-theme WhiteSur-dark
-gsettings set org.gnome.desktop.interface gtk-theme WhiteSur-Dark-solid
+gsettings set org.gnome.desktop.interface icon-theme WhiteSur-light
+gsettings set org.gnome.desktop.interface gtk-theme WhiteSur-Light-solid
 
-# Setting walls
+gsettings set org.gnome.desktop.background picture-uri file:///home/$USER/.local/share/backgrounds/WhiteSur/WhiteSur-timed.xml
+gsettings set org.gnome.desktop.background picture-uri-dark file:///home/$USER/.local/share/backgrounds/WhiteSur/WhiteSur-timed.xml
 
-for i in "$scrDir"/walls/*;do
-	sudo cp $i /usr/share/backgrounds
-done
 
-gsettings set org.gnome.desktop.background picture-uri 'file:///usr/share/backgrounds/WhiteSur-light.jpg'
-gsettings set org.gnome.desktop.background picture-uri-dark 'file:///usr/share/backgrounds/WhiteSur.jpg'
-
-# Installing Extensions ----------------------------------------
-
-for i in "$scrDir"/ext/ubuntu/*; do
-	gnome-extensions install $i
-done
