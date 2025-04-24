@@ -58,7 +58,7 @@ if [[ $os == "pop" ]]; then
 		fi
 	done
 else
-	for extension in "${pop_extensions[@]}"; do
+	for extension in "${extensions[@]}"; do
 		if gnome-extensions list | grep -q "$extension"; then
 			echo "Extension $extension is already installed. Skipping..."
 		else

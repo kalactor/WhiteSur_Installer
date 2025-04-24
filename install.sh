@@ -41,7 +41,7 @@ case "$ID" in
 	fedora|centos|rhel)
 		pm="dnf"
 		;;
-	arch)
+	arch|manjaro)
 		pm="pacman"
 		;;
 	alpine)
